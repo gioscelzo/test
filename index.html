@@ -2,14 +2,434 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La mia Console Python</title>
-    <!-- Importa PyScript -->
-    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
-    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CIAO FRA!</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #0d0d0d;
+            color: #eeeeee;
+            font-family: "Courier New", monospace;
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .terminal {
+            width: min(850px, 94vw);
+            height: min(700px, 90vh);
+
+            background: #111111;
+            border: 1px solid #333;
+            border-radius: 10px;
+
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.6);
+
+            overflow: hidden;
+
+            display: flex;
+            flex-direction: column;
+        }
+
+        .topbar {
+            height: 38px;
+            flex-shrink: 0;
+
+            background: #202020;
+
+            display: flex;
+            align-items: center;
+
+            padding-left: 14px;
+            gap: 8px;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .red {
+            background: #ff5f57;
+        }
+
+        .yellow {
+            background: #febc2e;
+        }
+
+        .green {
+            background: #28c840;
+        }
+
+        #terminal {
+            flex: 1;
+            overflow-y: auto;
+
+            padding: 25px;
+
+            white-space: pre-wrap;
+            word-break: break-word;
+
+            line-height: 1.55;
+
+            scrollbar-width: thin;
+            scrollbar-color: #444 transparent;
+        }
+
+        .line {
+            margin-bottom: 10px;
+        }
+
+        .bot {
+            color: #eeeeee;
+        }
+
+        .user {
+            color: #62e884;
+        }
+
+        .code {
+            color: #bdbdbd;
+            padding-left: 20px;
+        }
+
+        .input-container {
+            display: flex;
+            align-items: center;
+
+            padding: 14px 25px;
+
+            border-top: 1px solid #292929;
+
+            background: #111;
+        }
+
+        .prompt {
+            color: #62e884;
+            margin-right: 8px;
+        }
+
+        #input {
+            flex: 1;
+
+            border: none;
+            outline: none;
+
+            background: transparent;
+
+            color: #62e884;
+
+            font-family: "Courier New", monospace;
+            font-size: 16px;
+        }
+
+        #input::selection {
+            background: #285c38;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 18px;
+
+            background: #eeeeee;
+
+            animation: blink 1s infinite;
+            vertical-align: middle;
+        }
+
+        @keyframes blink {
+            0%, 49% {
+                opacity: 1;
+            }
+
+            50%, 100% {
+                opacity: 0;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .terminal {
+                width: 100vw;
+                height: 100vh;
+                border-radius: 0;
+                border: none;
+            }
+
+            #terminal {
+                padding: 20px;
+            }
+
+            .input-container {
+                padding: 14px 20px;
+            }
+        }
+    </style>
 </head>
+
 <body>
-    <h1>Console</h1>
-    <!-- Questo tag caricherà ed eseguirà il tuo file Python mostrando un terminale -->
-    <script type="py" src="./tst.py" terminal></script>
+
+<div class="terminal">
+
+    <div class="topbar">
+        <div class="dot red"></div>
+        <div class="dot yellow"></div>
+        <div class="dot green"></div>
+    </div>
+
+    <div id="terminal"></div>
+
+    <div id="input-container" class="input-container hidden">
+        <span class="prompt">&gt;</span>
+
+        <input
+            id="input"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+        >
+    </div>
+
+</div>
+
+<script>
+    const terminal = document.getElementById("terminal");
+    const inputContainer = document.getElementById("input-container");
+    const input = document.getElementById("input");
+
+    const massiveDelay = 3500;
+    const longDelay = 2500;
+    const shortDelay = 1500;
+
+    let waitingForInput = false;
+    let resolveInput = null;
+
+
+    // --------------------------------------------------
+    // Utility
+    // --------------------------------------------------
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+
+    function scrollToBottom() {
+        terminal.scrollTop = terminal.scrollHeight;
+    }
+
+
+    function print(text, className = "bot") {
+        const line = document.createElement("div");
+
+        line.className = "line " + className;
+        line.textContent = text;
+
+        terminal.appendChild(line);
+
+        scrollToBottom();
+    }
+
+
+    function printCode(text) {
+        const line = document.createElement("div");
+
+        line.className = "line code";
+        line.textContent = text;
+
+        terminal.appendChild(line);
+
+        scrollToBottom();
+    }
+
+
+    async function getInput() {
+        waitingForInput = true;
+
+        inputContainer.classList.remove("hidden");
+
+        input.value = "";
+        input.focus();
+
+        return new Promise(resolve => {
+            resolveInput = resolve;
+        });
+    }
+
+
+    function submitInput() {
+        if (!waitingForInput || !resolveInput) {
+            return;
+        }
+
+        const value = input.value;
+
+        if (value.trim() === "") {
+            return;
+        }
+
+        waitingForInput = false;
+
+        inputContainer.classList.add("hidden");
+
+        print(value, "user");
+
+        const resolve = resolveInput;
+
+        resolveInput = null;
+
+        resolve(value);
+    }
+
+
+    input.addEventListener("keydown", event => {
+        if (event.key === "Enter") {
+            submitInput();
+        }
+    });
+
+
+    // --------------------------------------------------
+    // Programma
+    // --------------------------------------------------
+
+    async function program() {
+
+        print("CIAO FRA!");
+
+        await sleep(longDelay);
+
+
+        print("Come stai? [Bene/Male]");
+
+        await getInput();
+
+
+        print("Dai, sono contenta");
+
+        await sleep(shortDelay);
+
+
+        print(
+            "Il messaggio non cambiava in base alla risposta, " +
+            "non ho ancora imparato gli if. Guarda il codice"
+        );
+
+        await sleep(longDelay);
+
+
+        printCode(
+            'input("Come stai? [Bene/Male]")'
+        );
+
+        printCode(
+            'print("Dai, sono contenta")'
+        );
+
+
+        await sleep(massiveDelay);
+
+
+        print("Vuoi picchiarmi eh?");
+
+        await sleep(longDelay);
+
+
+        print("Comunque...");
+
+        await sleep(shortDelay);
+
+
+        print("...ti volevo chiedere...");
+
+        await sleep(shortDelay);
+
+
+        print("...ti andrebbe di uscire?");
+
+        await sleep(longDelay);
+
+
+        // --------------------------------------------------
+        // Prima domanda
+        // --------------------------------------------------
+
+        while (true) {
+
+            print(
+                'Valuta bene la risposta. Puoi inserire "SI" o "NO". ' +
+                "Prova ad inserire NO ->"
+            );
+
+            const response = await getInput();
+
+            if (
+                response === "NO" ||
+                response === "no" ||
+                response === "No"
+            ) {
+                break;
+            }
+
+            print("Hey, non barare!");
+        }
+
+
+        print("No, questa risposta non va bene");
+
+        await sleep(longDelay);
+
+
+        print(
+            "Ok, scherzavo. Ora seriamente, ti va di uscire?"
+        );
+
+
+        // --------------------------------------------------
+        // Seconda domanda
+        // --------------------------------------------------
+
+        while (true) {
+
+            const response = await getInput();
+
+            if (
+                response === "SI" ||
+                response === "Si" ||
+                response === "si"
+            ) {
+                break;
+            }
+
+            print("Questa risposta non va bene. Riprova ");
+        }
+
+
+        print(
+            "OK! Va facciamo martedì? o martedì prossimo? " +
+            "Ritorna in chat però, non ho più risposte... :("
+        );
+    }
+
+
+    // Avvia il programma
+    program();
+
+</script>
+
 </body>
 </html>
